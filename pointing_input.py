@@ -7,6 +7,7 @@ import time
 from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
 import numpy as np
+from collections import deque
 
 from pynput.mouse import Button, Controller
 
@@ -19,6 +20,8 @@ HandLandmarkerResult = mp.tasks.vision.HandLandmarkerResult
 VisionRunningMode = mp.tasks.vision.RunningMode
 
 RESOLUTION = (1920, 1200)
+NUM_SAVED_PREVIOUS_POSIITIONS = 10
+MARGIN = 0.1
 
 def determine_interaction(threshold, detection_result):
     hand_landmarks_list = detection_result.hand_landmarks 
@@ -72,7 +75,7 @@ class HandDetector:
         
         self.mouse = Controller()
         self.lmb_status = False # True: Left Mouse Button is held down. False: Left Mouse Button is not pressed.
-        self.interaction_point_previous_position = None
+        self.previous_positions = deque([], maxlen=NUM_SAVED_PREVIOUS_POSIITIONS)
         self.cursor_velocity = 1
         
             # Create a hand landmarker instance with the live stream mode:
@@ -88,7 +91,17 @@ class HandDetector:
         if not self.interaction_point is None:
             cursor_x, cursor_y = self.interaction_point # TODO: Map image coordinates to screen coordinates
             
-            self.mouse.position = (cursor_x * RESOLUTION[0], cursor_y * RESOLUTION[1]) # TODO: Smoothing
+            self.previous_positions.append((cursor_x, cursor_y))
+            average_x, average_y = 0, 0
+            for position in self.previous_positions:
+                average_x += position[0]
+                average_y += position[1]
+            average_x = average_x / len(self.previous_positions)
+            average_y = average_y / len(self.previous_positions)
+            self.mouse.position = ((average_x - MARGIN) * (1 + 2 * MARGIN) * RESOLUTION[0], (average_y - MARGIN) * (1 + 2 * MARGIN) * RESOLUTION[1]) # TODO: Smoothing
+        else:
+            self.previous_positions.clear()
+            lmb_down = False
         
         if lmb_down != self.lmb_status:
             if lmb_down:
@@ -122,6 +135,7 @@ class HandDetector:
 
 if __name__ == '__main__':
     detector = HandDetector()
+    print("Hand interaction mode active")
     while detector.running:
         a, b =detector.run()
         detector.control_cursor()
