@@ -8,6 +8,8 @@ from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
 import numpy as np
 
+from pynput.mouse import Button, Controller
+
 model_path = 'hand_landmarker.task'
 
 BaseOptions = mp.tasks.BaseOptions
@@ -16,7 +18,9 @@ HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
 HandLandmarkerResult = mp.tasks.vision.HandLandmarkerResult
 VisionRunningMode = mp.tasks.vision.RunningMode
 
-def determin_interaction(threshold, detection_result):
+RESOLUTION = (1920, 1200)
+
+def determine_interaction(threshold, detection_result):
     hand_landmarks_list = detection_result.hand_landmarks 
 
 
@@ -64,13 +68,39 @@ class HandDetector:
             result_callback=self.get_interaction)
         self.landmarker = HandLandmarker.create_from_options(self.options)
         self.threshold = 0.1
+
+        
+        self.mouse = Controller()
+        self.lmb_status = False # True: Left Mouse Button is held down. False: Left Mouse Button is not pressed.
+        self.interaction_point_previous_position = None
+        self.cursor_velocity = 1
         
             # Create a hand landmarker instance with the live stream mode:
     def get_interaction(self, result: HandLandmarkerResult, output_image: mp.Image, timestamp_ms: int):
         out = np.zeros(self.dimensions)
      
-        self.interacting, self.interaction_point = determin_interaction(self.threshold, result)
+        self.interacting, self.interaction_point = determine_interaction(self.threshold, result)
         #print("reached"+str(self.interacting)+" "+ str(d))
+
+    def control_cursor(self):
+        
+        lmb_down = self.interacting 
+        if not self.interaction_point is None:
+            cursor_x, cursor_y = self.interaction_point # TODO: Map image coordinates to screen coordinates
+            
+            self.mouse.position = (cursor_x * RESOLUTION[0], cursor_y * RESOLUTION[1]) # TODO: Smoothing
+        
+        if lmb_down != self.lmb_status:
+            if lmb_down:
+                self.mouse.press(Button.left)
+            else:
+                self.mouse.release(Button.left)
+        
+        self.lmb_status = lmb_down
+
+        #if lmb_down != self.lmb_status: # Either LMB was pressed before and was just released, or vice versa; which means that we have to trigger an event.
+        
+        
         
     def run(self):
     
@@ -81,7 +111,7 @@ class HandDetector:
         frame = cv2.flip(frame, 1)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
         pose_result=self.landmarker.detect_async(mp_image, int(time.time() * 1000))
-        
+
         #if self.interaction_point and self.interacting:
         #    print(str(self.interacting) + " " +str(self.interaction_point))
         
@@ -94,6 +124,7 @@ if __name__ == '__main__':
     detector = HandDetector()
     while detector.running:
         a, b =detector.run()
+        detector.control_cursor()
         if cv2.waitKey(1) == ord('q'):
                 detector.running = False
     detector.cap.release()
