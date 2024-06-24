@@ -13,12 +13,15 @@ import os
 participant_id = -1
 input_device_condition = "no_condition"
 num_trials_per_condition = 20
+latency_s = 0
 
 # usage: python fitts-law.py [PARTICIPANT ID] [INPUT DEVICE CONDITION] [NUMBER OF TRIALS PER TARGET CONDITION]
 if len(sys.argv) >= 4:
     participant_id = sys.argv[1]
     input_device_condition = sys.argv[2]
     num_trials_per_condition = sys.argv[3]
+    if len(sys.argv) >= 5:
+        latency_s = float(sys.argv[4])
 
 
 #circle point calculation was done with chatGPT
@@ -31,7 +34,14 @@ def point_on_circle(cx,cy,radius,angle_deg):
 #setup pyglet window
 WINDOW_WIDTH = 1220
 WINDOW_HEIGHT = 760
+CURSOR_FNAME = "cursor.png"
 window = pyglet.window.Window(WINDOW_WIDTH, WINDOW_HEIGHT)
+
+# a very hacky way of hiding the cursor. Loads a fully transparent image as the cursor.
+cursor_image = pyglet.image.load(CURSOR_FNAME)
+dummy_cursor = pyglet.window.ImageMouseCursor(cursor_image)
+window.set_mouse_cursor(dummy_cursor)
+
 color_inactive=(210,210,210,255)
 color_active=(255,247,5,255)
 cursor = pyglet.shapes.Circle(-10,-10,10,color=(210,204,0,100))
@@ -45,8 +55,8 @@ conditions = list(itertools.product(distances, sizes))
 conditions = random.sample(conditions, len(conditions))
 distance_con = None
 size_con = None
-target_number = 5
-target_index = target_number
+target_number = 11
+target_index = num_trials_per_condition
 pressing = False
 angle = 360 / target_number
 
@@ -76,7 +86,7 @@ def get_next_target():
         trials.append(current_trial)
     current_trial = {}
 
-    if target_index == target_number:
+    if target_index == num_trials_per_condition:
         #check if there are conditions left.                
         if conditions:
             #get new conditions
@@ -127,28 +137,39 @@ def on_draw():
 
 @window.event
 def on_mouse_motion(x, y, dx, dy):
-    update_cursor_position(x,y)
+    if latency_s > 0:
+        pyglet.clock.schedule_once(lambda dt: update_cursor_position(x,y), latency_s)
+    else:
+        update_cursor_position(x,y)
 
 
     
 @window.event
 def on_mouse_press(x, y, button, modifiers):
     if button == mouse.LEFT:
-        #Start Recording
-        press_interaction(x, y)
-        cursor.color = color_active
+        if latency_s > 0:
+            pyglet.clock.schedule_once(lambda dt: press_interaction(x,y), latency_s)
+        else:
+            #Start Recording
+            press_interaction(x, y)
 
 @window.event
 def on_mouse_release(x,y, button, modifiers):
     if button == mouse.LEFT:
-        cursor.color = color_inactive
+        if latency_s > 0:
+            pyglet.clock.schedule_once(lambda dt:release_interaction(x,y), latency_s)
+        else:
+            release_interaction(x,y)
         
 
+def release_interaction(x,y):
+    cursor.color = color_inactive
 
 #gather input from all input devices here
 def press_interaction(x,y):
     global current_trial
     global current_ts
+    global cursor
     d = get_distance(x,y,target.x,target.y)
     success = d < cursor.radius + target.radius
     if current_trial:
@@ -172,7 +193,10 @@ def press_interaction(x,y):
         current_ts = None # this means that every trial where the previous circle was not hit is invalid. Should it be like that?
         pass
 
-    print(current_trial)
+    #print(current_trial)
+    
+    cursor.color = color_active
+
     #check if Target was clicked.
     #if target
     #go to next target.
