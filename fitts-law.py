@@ -15,7 +15,7 @@ input_device_condition = "no_condition"
 num_trials_per_condition = 20
 latency_s = 0
 
-# usage: python fitts-law.py [PARTICIPANT ID] [INPUT DEVICE CONDITION] [NUMBER OF TRIALS PER TARGET CONDITION]
+# usage: python fitts-law.py [PARTICIPANT ID] [INPUT DEVICE CONDITION] [NUMBER OF TRIALS PER TARGET CONDITION] [LATENCY IN SECONDS]
 if len(sys.argv) >= 4:
     participant_id = sys.argv[1]
     input_device_condition = sys.argv[2]
