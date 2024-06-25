@@ -19,7 +19,7 @@ latency_s = 0
 if len(sys.argv) >= 4:
     participant_id = sys.argv[1]
     input_device_condition = sys.argv[2]
-    num_trials_per_condition = sys.argv[3]
+    num_trials_per_condition = int(sys.argv[3])
     if len(sys.argv) >= 5:
         latency_s = float(sys.argv[4])
 
@@ -79,6 +79,8 @@ def get_next_target():
     global current_trial
     global current_ts
     global trials
+
+    print(target_index)
     #if distance_con and size_con:
         #normal state
     # start new trial
@@ -185,11 +187,11 @@ def press_interaction(x,y):
         current_trial["success"] = True
     if success:
         #the target was hit.
-        print("Hit")
+        #print("Hit")
         current_ts = time.time()
     else:
         #the target was not hit.
-        print("Miss")
+        #print("Miss")
         current_ts = None # this means that every trial where the previous circle was not hit is invalid. Should it be like that?
         pass
 
