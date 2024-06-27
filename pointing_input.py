@@ -22,17 +22,21 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 RESOLUTION = (1920, 1200)
 NUM_SAVED_PREVIOUS_POSIITIONS = 10
 MARGIN = 0.1
+CHECK_BEFORE_ACTIVATION = 1
 
-def determine_interaction(threshold, detection_result):
+THRESHHOLD = 0.1
+THRESHHOLD_D = 0.2
+
+
+
+
+def determine_distance(detection_result):
     hand_landmarks_list = detection_result.hand_landmarks 
-
-
     distance = None
     interaction_point = None
-    interacting= False
-    # Loop through the detected hand landmarks to visualize.
     
     for idx in range(len(hand_landmarks_list)):
+        
         hand_landmarks = hand_landmarks_list[idx]
                 
         selected_landmarks = [landmark for i, landmark in enumerate(hand_landmarks) if i in [4, 8]]
@@ -51,18 +55,29 @@ def determine_interaction(threshold, detection_result):
             distance = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
             midpoint = (int((x1 + x2) / 2), int((y1 + y2) / 2))
             interaction_point = (x1, y1)
+    
+    return distance, interaction_point
+    
+def determine_interaction(threshold, threshold_deactivate, distance, activation_countdown, interacting_old):    
+    interacting= interacting_old
+    # Loop through the detected hand landmarks to visualize.    
     if distance:
         if distance <= threshold:
-            interacting =True
-    
-    return interacting, interaction_point
+            if activation_countdown <= 0:
+                interacting =True
+            else:
+                activation_countdown-=1
+        elif distance > threshold_deactivate:
+            activation_countdown = CHECK_BEFORE_ACTIVATION
+            interacting = False
+    return interacting, activation_countdown
 
 class HandDetector:
     def __init__(self):
         self.cap = cv2.VideoCapture(0)
         self.running = True
         self.dimensions = (480, 640, 3)
-        self.interacting = None 
+        self.interacting = False
         self.interaction_point = None
         self.annotated_image = np.zeros(self.dimensions, dtype=np.uint8)
         self.options = HandLandmarkerOptions(
@@ -71,18 +86,21 @@ class HandDetector:
             result_callback=self.get_interaction)
         self.landmarker = HandLandmarker.create_from_options(self.options)
         self.threshold = 0.1
-
+        self.threshold_deactivate = 0.2
+        self.activation_countdown=CHECK_BEFORE_ACTIVATION
         
         self.mouse = Controller()
         self.lmb_status = False # True: Left Mouse Button is held down. False: Left Mouse Button is not pressed.
         self.previous_positions = deque([], maxlen=NUM_SAVED_PREVIOUS_POSIITIONS)
         self.cursor_velocity = 1
-        
+        self.distance = None
             # Create a hand landmarker instance with the live stream mode:
     def get_interaction(self, result: HandLandmarkerResult, output_image: mp.Image, timestamp_ms: int):
         out = np.zeros(self.dimensions)
-     
-        self.interacting, self.interaction_point = determine_interaction(self.threshold, result)
+        self.distance, self.interaction_point= determine_distance(result)
+        
+    
+        
         #print("reached"+str(self.interacting)+" "+ str(d))
 
     def control_cursor(self):
@@ -124,7 +142,7 @@ class HandDetector:
         frame = cv2.flip(frame, 1)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
         pose_result=self.landmarker.detect_async(mp_image, int(time.time() * 1000))
-
+        self.interacting, self.activation_countdown = determine_interaction(self.threshold, self.threshold_deactivate, self.distance, self.activation_countdown, self.interacting)   
         #if self.interaction_point and self.interacting:
         #    print(str(self.interacting) + " " +str(self.interaction_point))
         
@@ -133,9 +151,48 @@ class HandDetector:
         return self.interacting, self.interaction_point
 
 
+
+    def calibration(self):
+        
+        success, frame = self.cap.read()
+        #if not success:
+        #    break
+
+        frame = cv2.flip(frame, 1)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
+        pose_result=self.landmarker.detect_async(mp_image, int(time.time() * 1000))
+        return self.distance
+
+
 if __name__ == '__main__':
     detector = HandDetector()
+    print("For calibration, please position your hand in front of the camera so that the index finger and thumb are almost touching, and press enter.")
+    input()
+    print("calibrating")
+    distance_open = None
+    distance_closed = None
+    while distance_closed==None:
+        distance_closed = detector.calibration()
+
+    
+    
+    print("Now, with your hand in the same place, spread your thumb and index finger away from each other and hit enter again.")
+    input()
+    print("calibrating")
+    while distance_open==None:
+        distance_open = detector.calibration()
+    
+    detector.threshold = distance_closed*1.5
+    
+    detector.threshold_deactivate = distance_closed +(distance_open-distance_closed)/2
+    if detector.threshold >detector.threshold_deactivate:
+        detector.threshold_deactivate = detector.threshold * 1.5
+    
+    
+    print(str(detector.threshold_deactivate)+ " " + str( detector.threshold) )
+    
     print("Hand interaction mode active")
+    
     while detector.running:
         a, b =detector.run()
         detector.control_cursor()
