@@ -1,0 +1,7 @@
+numpy
+pandas
+pyglet
+pyyaml
+mediapipe
+opencv-contrib-python
+pynput

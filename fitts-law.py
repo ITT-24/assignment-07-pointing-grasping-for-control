@@ -9,19 +9,18 @@ import math
 import time
 import sys
 import os
+import yaml
 
 participant_id = -1
 input_device_condition = "no_condition"
-num_trials_per_condition = 20
 latency_s = 0
 
-# usage: python fitts-law.py [PARTICIPANT ID] [INPUT DEVICE CONDITION] [NUMBER OF TRIALS PER TARGET CONDITION] [LATENCY IN SECONDS]
-if len(sys.argv) >= 4:
+# usage: python fitts-law.py [PARTICIPANT ID] [INPUT DEVICE CONDITION]  [LATENCY IN SECONDS]
+if len(sys.argv) >= 3:
     participant_id = sys.argv[1]
     input_device_condition = sys.argv[2]
-    num_trials_per_condition = int(sys.argv[3])
-    if len(sys.argv) >= 5:
-        latency_s = float(sys.argv[4])
+    if len(sys.argv) >= 4:
+        latency_s = float(sys.argv[3])
 
 
 #circle point calculation was done with chatGPT
@@ -31,10 +30,28 @@ def point_on_circle(cx,cy,radius,angle_deg):
     y = cy + radius * np.sin(angle_rad)
     return x, y
 
+CURSOR_FNAME = "cursor.png"
+CONFIG_FNAME = "config.yaml"
+distances = [50,100]
+sizes = [1,2]
+target_number = 1
+repetitions = 1
+
 #setup pyglet window
 WINDOW_WIDTH = 1220
 WINDOW_HEIGHT = 760
-CURSOR_FNAME = "cursor.png"
+
+with open(CONFIG_FNAME, 'r') as fhandle:
+    configs = yaml.safe_load(fhandle)
+    print(configs)
+    distances = configs["distances"]
+    sizes = configs["sizes"]
+    target_number = configs["target_number"]
+    repetitions = configs["num_trials"]
+    WINDOW_WIDTH = configs["window_width"]
+    WINDOW_HEIGHT = configs["window_height"]
+    
+
 window = pyglet.window.Window(WINDOW_WIDTH, WINDOW_HEIGHT)
 
 # a very hacky way of hiding the cursor. Loads a fully transparent image as the cursor.
@@ -49,13 +66,15 @@ target = pyglet.shapes.Circle(WINDOW_WIDTH/2,WINDOW_HEIGHT/2,100,color=(100,100,
 
 
 #Setting Up the conditions
-distances = [100,200,300]
-sizes = [30,40,50]
-conditions = list(itertools.product(distances, sizes))
+conditions = list(itertools.product(distances, sizes)) * repetitions
 conditions = random.sample(conditions, len(conditions))
 distance_con = None
 size_con = None
-target_number = 11
+
+
+
+
+num_trials_per_condition = target_number
 target_index = num_trials_per_condition
 pressing = False
 angle = 360 / target_number
@@ -106,6 +125,8 @@ def get_next_target():
             print(trials_df)
             output_fpath = os.path.join(output_dir, f"{participant_id}-{input_device_condition}.csv")
             trials_df.to_csv(output_fpath)
+
+            os._exit(0)
             return
             pass
     else:
@@ -177,7 +198,7 @@ def press_interaction(x,y):
     if current_trial:
         if current_ts == None:
             current_trial["valid"] = False
-            current_trial["time"] = np.NaN
+            current_trial["time"] = np.nan
         else:
             duration = time.time() - current_ts
             current_trial["valid"] = True

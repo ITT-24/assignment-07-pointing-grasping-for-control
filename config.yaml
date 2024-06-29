@@ -1,0 +1,16 @@
+---
+distances:
+  - 100
+  - 200
+  - 300
+
+sizes:
+  - 30
+  - 40
+  - 50
+
+target_number: 11
+num_trials: 3
+window_width: 1220
+window_height: 760
+...
