@@ -52,7 +52,7 @@ with open(CONFIG_FNAME, 'r') as fhandle:
     WINDOW_HEIGHT = configs["window_height"]
     
 
-window = pyglet.window.Window(WINDOW_WIDTH, WINDOW_HEIGHT)
+window = pyglet.window.Window(WINDOW_WIDTH, WINDOW_HEIGHT, fullscreen=True)
 
 # a very hacky way of hiding the cursor. Loads a fully transparent image as the cursor.
 cursor_image = pyglet.image.load(CURSOR_FNAME)
